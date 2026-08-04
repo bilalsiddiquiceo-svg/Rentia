@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  user
+  owner
+}
+
+model User {
+  id                    String                @id @default(uuid())
+  email                 String                @unique
+  password_hash         String
+  name                  String?
+  role                  Role                  @default(user)
+  phone                 String?
+  created_at            DateTime              @default(now())
+  updated_at            DateTime              @updatedAt
+  sessions              Session[]
+  owner_upgrade_requests OwnerUpgradeRequest[]
+}
+
+model Session {
+  id                 String    @id @default(uuid())
+  user_id            String
+  refresh_token_hash String
+  expires_at         DateTime
+  revoked_at         DateTime?
+  user_agent         String?
+  created_at         DateTime  @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model OwnerUpgradeRequest {
+  id           String    @id @default(uuid())
+  user_id      String
+  token_hash   String
+  expires_at   DateTime
+  confirmed_at DateTime?
+  created_at   DateTime  @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}

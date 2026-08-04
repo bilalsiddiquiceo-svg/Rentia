@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.next/
+build/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+__pycache__/
+.kilo/node_modules/
+.kilo/agent-manager.json
+.kilo/worktrees/
