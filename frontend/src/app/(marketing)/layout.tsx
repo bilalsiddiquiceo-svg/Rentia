@@ -19,10 +19,7 @@ export default function MarketingLayout({
             {/* Brand + newsletter */}
             <div className="max-w-sm">
               <Link href="/" className="inline-flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-brand to-mint text-xs font-extrabold text-white">
-                  R
-                </div>
-                <span className="text-base font-bold tracking-tight">Rentia</span>
+                <img src="/logo.png" alt="Rentia Logo" className="h-10 w-auto object-contain" />
               </Link>
               <div className="mt-4 flex items-center gap-2">
                 <input

@@ -4,9 +4,13 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
+import { useRealtime } from '@/context/realtime-context';
+import { NotificationBell } from '@/components/NotificationBell';
+import { Skeleton } from '@/components/Skeleton';
 
 export const Header: React.FC = () => {
   const { user, logout, isLoading } = useAuth();
+  const { messageCount } = useRealtime();
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
 
@@ -32,10 +36,7 @@ export const Header: React.FC = () => {
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Brand */}
         <Link href="/" className="group flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand to-mint text-sm font-extrabold text-white shadow-md shadow-brand/20 transition-transform duration-200 group-hover:scale-105">
-            R
-          </div>
-          <span className="text-lg font-bold tracking-tight text-coal">Rentia</span>
+<img src="/logo.png" alt="Rentia Logo" className="h-11 w-auto object-contain" />
         </Link>
 
         {/* Desktop Navigation */}
@@ -72,9 +73,24 @@ export const Header: React.FC = () => {
         {/* Desktop User Actions */}
         <div className="hidden items-center gap-2 md:flex">
           {isLoading ? (
-            <div className="h-9 w-28 animate-pulse rounded-lg bg-mist"></div>
+            <Skeleton className="h-9 w-28 rounded-lg" />
           ) : user ? (
             <div className="flex items-center gap-2">
+              <Link
+                href="/app/messages"
+                className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-mist bg-white text-slate-500 transition-colors hover:bg-brand-soft hover:text-brand"
+                aria-label="Messages"
+              >
+                <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+                </svg>
+                {messageCount > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#0F766E] px-1 text-[10px] font-bold text-white shadow-md notification-badge-pulse">
+                    {messageCount > 99 ? '99+' : messageCount}
+                  </span>
+                )}
+              </Link>
+              <NotificationBell />
               <div className="flex h-9 items-center gap-2 rounded-lg border border-mist bg-white px-3 text-xs text-coal/70">
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500"></span>
                 <span className="max-w-[10rem] truncate font-mono">{user.email}</span>
@@ -158,7 +174,7 @@ export const Header: React.FC = () => {
               ))}
             <div className="!mt-3 border-t border-mist/70 pt-3">
               {isLoading ? (
-                <div className="h-10 w-full animate-pulse rounded-lg bg-mist"></div>
+                <Skeleton className="h-10 w-full rounded-lg" />
               ) : user ? (
                 <div className="flex items-center justify-between">
                   <span className="truncate font-mono text-xs text-coal/70">{user.email}</span>
