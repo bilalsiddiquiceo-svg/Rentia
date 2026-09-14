@@ -1,4 +1,4 @@
-export interface AvailabilitySegment {
+﻿export interface AvailabilitySegment {
   type: 'booked' | 'open';
   flex: number;
 }
@@ -7,6 +7,7 @@ export interface MockProperty {
   id: string;
   title: string;
   description: string;
+  neighborhoodDescription?: string | null;
   address: string;
   city: string;
   neighborhood: string;
@@ -17,7 +18,6 @@ export interface MockProperty {
   photos: string[];
   status: 'active' | 'inactive';
   ownerName: string;
-  bookable: boolean;
   availability: AvailabilitySegment[];
   rating: number;
   reviewCount: number;
@@ -41,7 +41,6 @@ export const MOCK_PROPERTIES: MockProperty[] = [
     ],
     status: 'active',
     ownerName: 'Sarah Chen',
-    bookable: true,
     availability: [
       { type: 'booked', flex: 1.5 },
       { type: 'open', flex: 1 },
@@ -68,7 +67,6 @@ export const MOCK_PROPERTIES: MockProperty[] = [
     ],
     status: 'active',
     ownerName: 'Marcus Rivera',
-    bookable: true,
     availability: [
       { type: 'open', flex: 1.2 },
       { type: 'booked', flex: 1 },
@@ -94,7 +92,6 @@ export const MOCK_PROPERTIES: MockProperty[] = [
     ],
     status: 'active',
     ownerName: 'Emily Watson',
-    bookable: true,
     availability: [
       { type: 'open', flex: 1 },
       { type: 'booked', flex: 1.2 },
@@ -122,7 +119,6 @@ export const MOCK_PROPERTIES: MockProperty[] = [
     ],
     status: 'active',
     ownerName: 'James Park',
-    bookable: false,
     availability: [
       { type: 'booked', flex: 2 },
       { type: 'open', flex: 1 },
@@ -148,7 +144,6 @@ export const MOCK_PROPERTIES: MockProperty[] = [
     ],
     status: 'active',
     ownerName: 'David Kim',
-    bookable: true,
     availability: [
       { type: 'open', flex: 2 },
       { type: 'booked', flex: 1 },
@@ -174,7 +169,6 @@ export const MOCK_PROPERTIES: MockProperty[] = [
     ],
     status: 'active',
     ownerName: 'Lisa Nguyen',
-    bookable: true,
     availability: [
       { type: 'booked', flex: 0.5 },
       { type: 'open', flex: 2 },
@@ -201,7 +195,6 @@ export const MOCK_PROPERTIES: MockProperty[] = [
     ],
     status: 'active',
     ownerName: 'Robert Hale',
-    bookable: true,
     availability: [
       { type: 'open', flex: 1.5 },
       { type: 'booked', flex: 1.5 },
@@ -227,7 +220,6 @@ export const MOCK_PROPERTIES: MockProperty[] = [
     ],
     status: 'active',
     ownerName: 'Ana Torres',
-    bookable: true,
     availability: [
       { type: 'booked', flex: 1 },
       { type: 'open', flex: 1.5 },
@@ -254,7 +246,6 @@ export const MOCK_PROPERTIES: MockProperty[] = [
     ],
     status: 'active',
     ownerName: 'Tom Bradley',
-    bookable: false,
     availability: [
       { type: 'booked', flex: 3 },
       { type: 'open', flex: 1 },

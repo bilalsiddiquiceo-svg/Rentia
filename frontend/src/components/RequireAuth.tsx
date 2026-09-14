@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
+import { DashboardSkeleton } from '@/components/Skeleton';
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -15,11 +16,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   }, [isLoading, user, router]);
 
   if (isLoading) {
-    return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-transparent"></div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (!user) {

@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["relationJoins"]
 }
 
 datasource db {
@@ -13,6 +14,18 @@ enum Role {
   owner
 }
 
+enum PropertyStatus {
+  active
+  inactive
+}
+
+enum LeaseStatus {
+  pending_payment
+  active
+  cancelled
+  ended
+}
+
 model User {
   id                    String                @id @default(uuid())
   email                 String                @unique
@@ -20,10 +33,25 @@ model User {
   name                  String?
   role                  Role                  @default(user)
   phone                 String?
+  stripe_customer_id    String?               @unique
+  stripe_connect_id     String?
   created_at            DateTime              @default(now())
   updated_at            DateTime              @updatedAt
   sessions              Session[]
   owner_upgrade_requests OwnerUpgradeRequest[]
+  properties            Property[]
+  leases                Lease[]
+  favorites             Favorite[]
+  tenant_conversations  Conversation[]       @relation("TenantConversations")
+  owner_conversations   Conversation[]       @relation("OwnerConversations")
+  sent_messages         Message[]            @relation("SentMessages")
+  notifications         Notification[]
+  password_reset_tokens PasswordResetToken[]
+  agent_subscriptions   AgentSubscription[]
+  agent_messages        AgentMessage[]
+  agent_shared_locations AgentSharedLocation[]
+  agent_listing_draft   AgentListingDraft?
+  agent_conversation_context AgentConversationContext?
 }
 
 model Session {
@@ -38,6 +66,7 @@ model Session {
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@index([user_id])
+  @@index([refresh_token_hash])
 }
 
 model OwnerUpgradeRequest {
@@ -47,6 +76,281 @@ model OwnerUpgradeRequest {
   expires_at   DateTime
   confirmed_at DateTime?
   created_at   DateTime  @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model Property {
+  id           String         @id @default(uuid())
+  owner_id     String
+  title        String
+  description            String
+  neighborhood_description String?
+  address      String
+  city         String
+  neighborhood String?
+  latitude     Float?
+  longitude    Float?
+  monthly_rent Int
+  bedrooms     Int            @default(0)
+  bathrooms    Int            @default(1)
+  sqft         Int?
+  photos       String[]
+  features     String[]       @default([])
+  status       PropertyStatus @default(inactive)
+  view_count   Int            @default(0)
+  click_count  Int            @default(0)
+  created_at   DateTime       @default(now())
+  updated_at   DateTime       @updatedAt
+
+  owner  User    @relation(fields: [owner_id], references: [id], onDelete: Cascade)
+  leases Lease[]
+  favorites Favorite[]
+  conversations Conversation[]
+
+  @@index([owner_id])
+  @@index([owner_id, created_at])
+  @@index([status])
+  @@index([city])
+  @@index([monthly_rent, bedrooms], map: "Property_rent_bed_idx")
+}
+
+model Lease {
+  id                     String      @id @default(uuid())
+  user_id                String
+  property_id            String
+  start_date             DateTime
+  end_date               DateTime
+  months                  Int
+  status                  LeaseStatus @default(pending_payment)
+  monthly_rent             Int
+  stripe_subscription_id   String?
+  stripe_checkout_session_id String?
+  failed_payment_attempts Int         @default(0)
+  created_at              DateTime    @default(now())
+
+  user     User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [property_id], references: [id], onDelete: Cascade)
+  payments Payment[]
+
+  @@index([user_id, created_at])
+  @@index([property_id])
+  @@index([status])
+  @@index([stripe_subscription_id])
+  @@index([start_date, end_date], map: "Lease_dates_idx")
+}
+
+model Payment {
+  id                       String    @id @default(uuid())
+  lease_id                 String
+  period_start             DateTime
+  period_end               DateTime
+  amount                   Int
+  stripe_payment_intent_id String?
+  stripe_charge_id         String?
+  stripe_subscription_id   String?
+  stripe_transfer_id       String?
+  status                   String    @default("pending")
+  hold_release_at          DateTime
+  released_at              DateTime?
+  created_at               DateTime  @default(now())
+
+  lease Lease @relation(fields: [lease_id], references: [id], onDelete: Cascade)
+  disputes Dispute[]
+
+  @@index([lease_id, period_start])
+  @@index([status])
+  @@index([hold_release_at])
+  @@index([stripe_transfer_id])
+  @@index([stripe_charge_id])
+  @@index([stripe_payment_intent_id])
+}
+
+model Dispute {
+  id         String   @id @default(uuid())
+  payment_id String
+  amount     Int      @default(0)
+  reason     String
+  status     String   @default("open")
+  created_at DateTime @default(now())
+  resolved_at DateTime?
+
+  payment Payment @relation(fields: [payment_id], references: [id], onDelete: Cascade)
+
+  @@index([payment_id])
+  @@index([status])
+}
+
+model Favorite {
+  id         String   @id @default(uuid())
+  user_id    String
+  property_id String
+  created_at DateTime @default(now())
+
+  user     User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [property_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, property_id])
+  @@index([user_id])
+  @@index([property_id])
+}
+
+model Conversation {
+  id                   String    @id @default(uuid())
+  property_id          String
+  tenant_id            String
+  owner_id             String
+  last_message_at      DateTime?
+  last_message_preview String?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+
+  property Property @relation(fields: [property_id], references: [id], onDelete: Cascade)
+  tenant   User     @relation("TenantConversations", fields: [tenant_id], references: [id], onDelete: Cascade)
+  owner    User     @relation("OwnerConversations", fields: [owner_id], references: [id], onDelete: Cascade)
+  messages Message[]
+
+  @@unique([property_id, tenant_id])
+  @@index([tenant_id, updated_at])
+  @@index([owner_id, updated_at])
+  @@index([updated_at])
+}
+
+model Message {
+  id              String    @id @default(uuid())
+  conversation_id String
+  sender_id       String
+  text            String?
+  attachments     String[]  @default([])
+  edited_at       DateTime?
+  deleted_at      DateTime?
+  read_at         DateTime?
+  created_at      DateTime  @default(now())
+
+  conversation Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  sender       User         @relation("SentMessages", fields: [sender_id], references: [id], onDelete: Cascade)
+
+  @@index([conversation_id, created_at])
+  @@index([conversation_id, read_at])
+  @@index([sender_id])
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  user_id    String
+  type       String   @default("message")
+  title      String
+  body       String?
+  link       String?
+  metadata   Json?
+  read_at    DateTime?
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, read_at])
+  @@index([user_id, created_at])
+}
+
+model PasswordResetToken {
+  id         String    @id @default(uuid())
+  user_id    String
+  token_hash String    @unique
+  expires_at DateTime
+  used_at    DateTime?
+  created_at DateTime  @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model WebhookEvent {
+  id            String    @id @default(uuid())
+  stripeEventId String    @unique
+  eventType     String
+  processedAt   DateTime?
+  createdAt     DateTime @default(now())
+}
+
+model AgentSubscription {
+  id                       String    @id @default(uuid())
+  user_id                  String    @unique
+  stripe_subscription_id   String?   @unique
+  stripe_checkout_session_id String?
+  status                   String    @default("inactive")
+  current_period_end       DateTime?
+  created_at               DateTime  @default(now())
+  updated_at               DateTime  @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model AgentMessage {
+  id         String   @id @default(uuid())
+  user_id    String
+  role       String
+  content    String
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, created_at])
+}
+
+model AgentSharedLocation {
+  id         String   @id @default(uuid())
+  user_id    String
+  slot       String   @default("move") // 'create' | 'move' — separate pin per flow
+  latitude   Float
+  longitude  Float
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, slot])
+}
+
+// In-progress listing-creation draft — one per owner, survives restarts.
+model AgentListingDraft {
+  id                       String   @id @default(uuid())
+  user_id                  String   @unique
+  title                    String?
+  description              String?
+  neighborhood_description String?
+  address                  String?
+  city                     String?
+  neighborhood             String?
+  monthly_rent             Int?
+  bedrooms                 Int?
+  bathrooms                Int?
+  sqft                     Int?
+  latitude                 Float?
+  longitude                Float?
+  photos                   String[] @default([])
+  features                 String[] @default([])
+  copy_attempted           Boolean  @default(false)
+  nearby_attempted         Boolean  @default(false)
+  created_at               DateTime @default(now())
+  updated_at               DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+model AgentConversationContext {
+  id                  String   @id @default(uuid())
+  user_id             String   @unique
+  active_listing_id   String?
+  active_listing_title String?
+  started_fresh       Boolean  @default(false)
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 

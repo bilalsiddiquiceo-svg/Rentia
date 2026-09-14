@@ -1,15 +1,49 @@
+# Dependencies
 node_modules/
+.pnpm-store/
+
+# Build outputs
 dist/
 .next/
 build/
-coverage/
-*.log
+out/
+
+# Environment
 .env
 .env.*
 !.env.example
+
+# Python
 .venv/
 venv/
 __pycache__/
-.kilo/node_modules/
-.kilo/agent-manager.json
-.kilo/worktrees/
+*.pyc
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDEs & editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Testing & coverage
+coverage/
+.nyc_output/
+
+# Kilo
+.kilo/
+
+# Misc
+*.tgz
+.cache/
+tmp/
+temp/

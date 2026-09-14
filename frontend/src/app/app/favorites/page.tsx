@@ -1,52 +1,111 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { PropertyCard } from '@/components/PropertyCard';
+import type { PropertyCardProperty } from '@/components/PropertyCard';
+import { fetchFavorites, type PropertyCardItem } from '@/lib/properties';
+import { useFavorites } from '@/lib/favorites';
+import { useToast } from '@/components/Toast';
+import { PropertyCardSkeleton } from '@/components/Skeleton';
+import { PageHeading } from '@/components/PageHeading';
 
-const FAVORITES = [
-  { id: '1', title: 'Sunlit Studio in Downtown', address: '142 W 57th St', city: 'New York', rent: 2450, bedrooms: 0, bathrooms: 1, image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=400&fit=crop&q=80', rating: 4.8 },
-  { id: '6', title: 'Urban Micro-Unit with Rooftop', address: '77 Tech Blvd', city: 'San Francisco', rent: 2100, bedrooms: 0, bathrooms: 1, image: 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=600&h=400&fit=crop&q=80', rating: 4.4 },
-  { id: '9', title: 'Charming Cottage near Lake', address: '8 Lakeview Terrace', city: 'Austin', rent: 2200, bedrooms: 2, bathrooms: 1, image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&h=400&fit=crop&q=80', rating: 5.0 },
-];
+function toCard(p: PropertyCardItem): PropertyCardProperty {
+  return {
+    id: p.id,
+    title: p.title,
+    photos: p.photos,
+    status: p.status,
+    monthlyRent: p.monthlyRent,
+    bedrooms: p.bedrooms,
+    bathrooms: p.bathrooms,
+    sqft: p.sqft ?? 0,
+    city: p.city,
+    neighborhood: p.neighborhood ?? '',
+    ownerName: p.ownerName,
+  };
+}
 
 export default function FavoritesPage() {
-  const [items, setItems] = useState(FAVORITES);
+  const { isFavorited, toggleFavorite } = useFavorites();
+  const { toast } = useToast();
+  const [properties, setProperties] = useState<PropertyCardItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchFavorites()
+      .then((data) => {
+        if (!cancelled) setProperties(data);
+      })
+      .catch((e) => {
+        if (!cancelled) setLoadError(e instanceof Error ? e.message : 'Could not load favorites');
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleToggleFavorite = async (id: string) => {
+    const result = await toggleFavorite(id);
+    if (result.success) {
+      setProperties((prev) => prev.filter((p) => p.id !== id));
+      toast('Removed from favorites', 'info');
+    } else {
+      toast(result.error || 'Could not remove from favorites', 'error');
+    }
+  };
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800">Saved homes</h1>
-        <p className="mt-1 text-sm text-slate-500">{items.length} properties you&apos;ve favorited</p>
-      </div>
+      <PageHeading
+        title="Saved Homes"
+        subtitle={
+          loading
+            ? 'Loading…'
+            : `${properties.length} ${properties.length === 1 ? 'property' : 'properties'} you've favorited`
+        }
+      />
 
-      {items.length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <PropertyCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : properties.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-20 text-center">
-          <p className="text-sm font-medium text-slate-600">No favorites yet</p>
-          <Link href="/app" className="mt-3 inline-block text-sm font-semibold text-[#0F766E] hover:underline">Browse properties</Link>
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-50">
+            <svg className="h-7 w-7 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+            </svg>
+          </div>
+          {loadError ? (
+            <>
+              <p className="mt-4 text-sm font-semibold text-slate-700">Could not load favorites</p>
+              <p className="mx-auto mt-1 max-w-xs text-xs text-slate-400">{loadError}</p>
+            </>
+          ) : (
+            <>
+              <p className="mt-4 text-sm font-semibold text-slate-700">No favorites yet</p>
+              <p className="mx-auto mt-1 max-w-xs text-xs text-slate-400">
+                Tap the heart on any property card to save it here for later.
+              </p>
+            </>
+          )}
+          <Link href="/app" className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-[#0F766E] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0D9488]">
+            Browse properties
+          </Link>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((p) => (
-            <div key={p.id} className="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/80">
-              <Link href={`/property/${p.id}`} className="block">
-                <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
-                  <img src={p.image} alt={p.title} loading="lazy" className="h-full w-full object-cover transition-all duration-500 group-hover:scale-105" />
-                  <div className="absolute bottom-3 left-3">
-                    <span className="rounded-lg bg-white/90 px-2.5 py-1 text-sm font-bold text-slate-800 shadow-sm backdrop-blur-sm">
-                      ${p.rent.toLocaleString()}<span className="text-xs font-normal text-slate-500">/mo</span>
-                    </span>
-                  </div>
-                </div>
-                <div className="p-4">
-                  <h3 className="text-sm font-semibold text-slate-800 line-clamp-1 group-hover:text-[#0F766E]">{p.title}</h3>
-                  <p className="mt-0.5 text-xs text-slate-500">{p.city}</p>
-                  <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
-                    <span className="text-xs text-slate-500">{p.bedrooms === 0 ? 'Studio' : `${p.bedrooms} bd`} · {p.bathrooms} ba</span>
-                    <span className="text-xs font-medium text-amber-500">★ {p.rating}</span>
-                  </div>
-                </div>
-              </Link>
-            </div>
+          {properties.map((p) => (
+            <PropertyCard
+              key={p.id}
+              property={toCard(p)}
+              isFavorited={isFavorited(p.id)}
+              onToggleFavorite={handleToggleFavorite}
+            />
           ))}
         </div>
       )}

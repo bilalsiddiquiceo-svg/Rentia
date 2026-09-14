@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/components/Toast';
 import { AgentChat, type AgentChatHandle } from '@/components/agent/AgentChat';
-import { getAgentStatus } from '@/lib/agent';
+import { getAgentStatus, getAgentStatusFresh } from '@/lib/agent';
 
 function SparklesIcon({ className = 'h-5 w-5' }: { className?: string }) {
   return (
@@ -36,8 +36,9 @@ export function AgentWidget() {
   // Only subscribed owners get the widget; re-check on every route change so a
   // lapsed or just-subscribed owner sees the correct state without a refresh.
   useEffect(() => {
+    if (!user || user.role !== 'owner') return;
     let cancelled = false;
-    getAgentStatus()
+    getAgentStatusFresh()
       .then((s) => {
         if (!cancelled) setSubscribed(s.active);
       })
@@ -50,7 +51,7 @@ export function AgentWidget() {
     return () => {
       cancelled = true;
     };
-  }, [pathname]);
+  }, [pathname, user]);
 
   const isOwner = !isLoading && user?.role === 'owner';
   if (!isOwner || checking || !subscribed) return null;

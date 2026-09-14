@@ -8,7 +8,6 @@ import type { User } from '@/context/auth-context';
 import { useToast } from '@/components/Toast';
 import { apiFetch } from '@/lib/api';
 import { NotificationBell } from '@/components/NotificationBell';
-import { useRealtime } from '@/context/realtime-context';
 import { AgentWidget } from '@/components/AgentWidget';
 
 interface NavItem {
@@ -93,20 +92,6 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-function getPageTitle(pathname: string): string {
-  if (pathname === '/app') return 'Browse Properties';
-  if (pathname === '/app/favorites') return 'Saved Homes';
-  if (pathname === '/app/messages') return 'Messages';
-  if (pathname.startsWith('/app/messages/')) return 'Chat';
-  if (pathname.startsWith('/dashboard/properties') && pathname.endsWith('/edit')) return 'Edit Property';
-  if (pathname.startsWith('/dashboard/properties')) return 'Add Property';
-  if (pathname === '/dashboard') return 'Dashboard';
-  if (pathname === '/dashboard/agent') return 'Rentia Agent';
-  if (pathname === '/dashboard/subscriptions') return 'Subscriptions';
-  if (pathname.startsWith('/property/')) return 'Property Details';
-  return 'Rentia';
-}
-
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -118,7 +103,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, updateUser, logout } = useAuth();
   const { toast } = useToast();
-  const { messageCount } = useRealtime();
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -191,11 +175,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 >
                   <span className={`shrink-0 relative transition-colors ${active ? 'text-[#0F766E]' : 'text-slate-400 group-hover:text-slate-500'}`}>
                     {item.icon}
-                    {item.href === '/app/messages' && messageCount > 0 && (
-                      <span className="absolute -right-1 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#0F766E] px-1 text-[10px] font-bold text-white shadow-md notification-badge-pulse">
-                        {messageCount > 99 ? '99+' : messageCount}
-                      </span>
-                    )}
                   </span>
                   {sidebarOpen && <span className="whitespace-nowrap">{item.label}</span>}
                 </Link>
@@ -282,12 +261,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className={`flex min-h-screen w-full flex-1 flex-col transition-[margin] duration-300 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-[72px]'}`}>
-        <header className="sticky top-0 z-20 grid h-16 grid-cols-[1fr_auto_1fr] items-center border-b border-slate-100 bg-white/80 backdrop-blur-xl px-4">
-          <h1 className="justify-self-start truncate text-lg font-bold tracking-tight text-slate-800 sm:text-xl">{getPageTitle(pathname)}</h1>
-          <Link href="/" onClick={(e) => e.stopPropagation()} className="justify-self-center" title="Rentia">
-            <img src="/logo.png" alt="Rentia Logo" className="h-11 w-auto object-contain" />
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-100 bg-white/80 backdrop-blur-xl px-4 sm:px-6">
+          <Link href="/" title="Rentia" className="shrink-0">
+            <img src="/logo.png" alt="Rentia Logo" className="h-14 w-auto object-contain" />
           </Link>
-          <div className="flex items-center gap-2 justify-self-end">
+          <div className="flex items-center gap-2">
             <NotificationBell />
             <AgentWidget />
           </div>
@@ -298,7 +276,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="h-[calc(100dvh-4rem)]">{children}</div>
           ) : pathname.startsWith('/app/messages/') ? (
             <div className="h-[calc(100dvh-4rem)]">{children}</div>
-          ) : pathname === '/app/messages' || pathname === '/app/leases' ? (
+          ) : pathname === '/app/messages' ? (
             <>{children}</>
           ) : (
             <div className="mx-auto w-full max-w-[1200px] px-6 py-6 sm:px-8 sm:py-8">

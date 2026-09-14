@@ -1,14 +1,14 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { apiFetch, setAccessToken } from '@/lib/api';
+import { apiFetch, setAccessToken, refreshSession } from '@/lib/api';
 
 export interface User {
   id: string;
   email: string;
   role: 'user' | 'owner';
-  name?: string;
-  phone?: string;
+  name?: string | null;
+  phone?: string | null;
 }
 
 interface AuthContextType {
@@ -29,12 +29,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshAuth = async () => {
     try {
-      const data = await apiFetch<{ accessToken: string; user: User }>('/auth/refresh', {
-        method: 'POST',
-        skipAuthRetry: true,
-      });
-      setAccessToken(data.accessToken);
-      setUser(data.user);
+      const data = await refreshSession();
+      if (data) {
+        setAccessToken(data.accessToken);
+        setUser(data.user);
+      } else {
+        setAccessToken(null);
+        setUser(null);
+      }
     } catch {
       setAccessToken(null);
       setUser(null);

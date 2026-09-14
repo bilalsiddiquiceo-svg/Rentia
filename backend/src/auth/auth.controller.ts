@@ -12,7 +12,7 @@ import {
 import { Request, Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
-import { SignUpDto, LogInDto, UpdateProfileDto } from './dto/auth.dto';
+import { SignUpDto, LogInDto, UpdateProfileDto, ForgotPasswordDto, ResetPasswordDto } from './dto/auth.dto';
 import { Public } from './decorators/public.decorator';
 import { UsersService } from '../users/users.service';
 
@@ -67,6 +67,22 @@ export class AuthController {
     return this.authService.logout(refreshToken, res);
   }
 
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('forgot-password')
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  @Post('reset-password')
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto.token, dto.newPassword);
+  }
   @Get('me')
   async me(@Req() req: Request) {
     const userId = (req as any).user?.id;

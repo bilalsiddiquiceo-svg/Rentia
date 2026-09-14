@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
 
 @theme {
   --color-ink: #1C2321;
@@ -219,6 +220,31 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--color-ink);
 }
 
+/* ─── Skeleton shimmer ─── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    #e5e7eb 0%,
+    #e5e7eb 35%,
+    #f3f4f6 50%,
+    #e5e7eb 65%,
+    #e5e7eb 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shimmer {
+    animation: none;
+  }
+}
+
 /* Focus visible for accessibility */
 :focus-visible {
   outline: 2px solid var(--color-clay);
@@ -366,4 +392,76 @@ h1, h2, h3, h4, h5, h6 {
 @media (prefers-reduced-motion: reduce) {
   .lp-marquee-left,
   .lp-marquee-right { animation: none; }
+}
+
+/* ─── Message bubble entrance ─── */
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.message-bubble-in {
+  animation: msg-in 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ─── Typing dots bounce ─── */
+@keyframes typing-bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+  30%           { transform: translateY(-4px); opacity: 1; }
+}
+.typing-dot {
+  animation: typing-bounce 1.2s ease-in-out infinite;
+}
+
+/* ─── Notification badge pop ─── */
+@keyframes badge-pop {
+  0%   { transform: scale(0.5); }
+  60%  { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+.notification-badge-pulse {
+  animation: badge-pop 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ─── Conversation list item hover ─── */
+.conversation-item {
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* ─── Chat messages scrollbar ─── */
+.chat-messages::-webkit-scrollbar { width: 4px; }
+.chat-messages::-webkit-scrollbar-track { background: transparent; }
+.chat-messages::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 2px; }
+.chat-messages::-webkit-scrollbar-thumb:hover { background: var(--color-muted-light); }
+
+/* ─── Chat composer textarea: no orange focus outline ─── */
+.chat-container textarea:focus,
+.chat-container input:focus,
+.chat-container textarea:focus-visible,
+.chat-container input:focus-visible,
+.agent-chat textarea:focus,
+.agent-chat input:focus,
+.agent-chat textarea:focus-visible,
+.agent-chat input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+/* ─── Messages inbox layout ─── */
+.messages-inbox {
+  min-height: 400px;
+}
+
+/* ─── Reduced motion overrides ─── */
+@media (prefers-reduced-motion: reduce) {
+  .message-bubble-in,
+  .notification-badge-pulse {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .typing-dot {
+    animation: none;
+    opacity: 0.6;
+    transform: none;
+  }
 }

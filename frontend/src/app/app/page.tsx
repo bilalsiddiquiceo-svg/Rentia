@@ -1,21 +1,37 @@
 'use client';
 
-import { useState, useMemo, useEffect, useRef } from 'react';
-import Link from 'next/link';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import useSWR from 'swr';
+import { PropertyCard } from '@/components/PropertyCard';
+import { PropertyCardSkeleton } from '@/components/Skeleton';
+import type { PropertyCardProperty } from '@/components/PropertyCard';
+import {
+  fetchProperties,
+  fetchCities,
+  trackClick,
+  type PropertyCardItem,
+} from '@/lib/properties';
+import { useFavorites } from '@/lib/favorites';
+import { useToast } from '@/components/Toast';
 
-const PROPERTIES = [
-  { id: '1', title: 'Sunlit Studio in Downtown', address: '142 W 57th St', city: 'New York', neighborhood: 'Midtown', rent: 2450, bedrooms: 0, bathrooms: 1, sqft: 520, image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&h=400&fit=crop&q=80', owner: 'Sarah Chen', rating: 4.8 },
-  { id: '2', title: 'Modern Loft with City Views', address: '890 Arts Way', city: 'Los Angeles', neighborhood: 'Arts District', rent: 3200, bedrooms: 2, bathrooms: 2, sqft: 1100, image: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=600&h=400&fit=crop&q=80', owner: 'Marcus Rivera', rating: 4.6 },
-  { id: '3', title: 'Cozy Garden Apartment', address: '320 Oak Lane', city: 'Austin', neighborhood: 'Westside', rent: 1850, bedrooms: 1, bathrooms: 1, sqft: 750, image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&h=400&fit=crop&q=80', owner: 'Emily Watson', rating: 4.9 },
-  { id: '4', title: 'Sleek One-Bed Near the Park', address: '401 E 72nd St', city: 'New York', neighborhood: 'Upper East Side', rent: 2800, bedrooms: 1, bathrooms: 1, sqft: 680, image: 'https://images.unsplash.com/photo-1600607687644-c7171b42498f?w=600&h=400&fit=crop&q=80', owner: 'James Park', rating: 4.5 },
-  { id: '5', title: 'Spacious Family Home', address: '115 Maple Drive', city: 'Chicago', neighborhood: 'Lincoln Park', rent: 3500, bedrooms: 3, bathrooms: 2, sqft: 1650, image: 'https://images.unsplash.com/photo-1600047509807-ba8f99d2cdde?w=600&h=400&fit=crop&q=80', owner: 'David Kim', rating: 4.7 },
-  { id: '6', title: 'Urban Micro-Unit with Rooftop', address: '77 Tech Blvd', city: 'San Francisco', neighborhood: 'SoMa', rent: 2100, bedrooms: 0, bathrooms: 1, sqft: 380, image: 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?w=600&h=400&fit=crop&q=80', owner: 'Lisa Nguyen', rating: 4.4 },
-  { id: '7', title: 'Renovated Brownstone Flat', address: '28 Beacon Hill Rd', city: 'Boston', neighborhood: 'Back Bay', rent: 2950, bedrooms: 2, bathrooms: 1, sqft: 950, image: 'https://images.unsplash.com/photo-1600210492493-0946911123ea?w=600&h=400&fit=crop&q=80', owner: 'Robert Hale', rating: 4.9 },
-  { id: '8', title: 'Waterfront Condo with Views', address: '500 Harbor St', city: 'Miami', neighborhood: 'Brickell', rent: 3800, bedrooms: 2, bathrooms: 2, sqft: 1200, image: 'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?w=600&h=400&fit=crop&q=80', owner: 'Ana Torres', rating: 4.7 },
-  { id: '9', title: 'Charming Cottage near Lake', address: '8 Lakeview Terrace', city: 'Austin', neighborhood: 'Tarrytown', rent: 2200, bedrooms: 2, bathrooms: 1, sqft: 900, image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&h=400&fit=crop&q=80', owner: 'Tom Bradley', rating: 5.0 },
-];
+const PAGE_SIZE = 6;
 
-const CITIES = [...new Set(PROPERTIES.map((p) => p.city))].sort();
+function toCard(p: PropertyCardItem): PropertyCardProperty {
+  return {
+    id: p.id,
+    title: p.title,
+    photos: p.photos,
+    status: p.status,
+    monthlyRent: p.monthlyRent,
+    bedrooms: p.bedrooms,
+    bathrooms: p.bathrooms,
+    sqft: p.sqft ?? 0,
+    city: p.city,
+    neighborhood: p.neighborhood ?? '',
+    ownerName: p.ownerName,
+  };
+}
+
 const BEDS = ['Any', 'Studio', '1+', '2+', '3+'];
 
 export default function AppBrowsePage() {
@@ -23,120 +39,279 @@ export default function AppBrowsePage() {
   const [city, setCity] = useState('Any');
   const [maxPrice, setMaxPrice] = useState(5000);
   const [beds, setBeds] = useState('Any');
-  const [sort, setSort] = useState<'price-asc' | 'price-desc' | 'rating'>('rating');
-  const [imgLoaded, setImgLoaded] = useState<Record<string, boolean>>({});
+  const [sort, setSort] = useState('newest');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const { isFavorited, toggleFavorite } = useFavorites();
+  const { toast } = useToast();
 
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    const bedCount = beds === 'Studio' ? 0 : beds === 'Any' ? -1 : parseInt(beds);
-    return PROPERTIES.filter((p) => {
-      if (city !== 'Any' && p.city !== city) return false;
-      if (p.rent > maxPrice) return false;
-      if (bedCount >= 0 && p.bedrooms < bedCount) return false;
-      if (q && !`${p.title} ${p.address} ${p.neighborhood} ${p.city}`.toLowerCase().includes(q)) return false;
-      return true;
-    }).sort((a, b) => sort === 'price-asc' ? a.rent - b.rent : sort === 'price-desc' ? b.rent - a.rent : b.rating - a.rating);
-  }, [search, city, maxPrice, beds, sort]);
+  const [properties, setProperties] = useState<PropertyCardItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const loadingRef = useRef(false);
+
+  const bedCount = beds === 'Studio' ? 0 : beds === 'Any' ? undefined : parseInt(beds);
+
+  const { data: cities } = useSWR<string[]>('cities', fetchCities, {
+    dedupingInterval: 300000,
+  });
+
+  const buildFetch = useCallback(
+    (pageOffset: number, pageLimit: number) =>
+      fetchProperties<PropertyCardItem>({
+        city: city === 'Any' ? undefined : city,
+        maxPrice: maxPrice < 5000 ? maxPrice : undefined,
+        bedrooms: bedCount,
+        q: search.trim() || undefined,
+        sort,
+        limit: pageLimit,
+        offset: pageOffset,
+        light: true,
+      }),
+    [city, maxPrice, bedCount, search, sort],
+  );
+
+  // Initial load + reload on filter change.
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setProperties([]);
+    setOffset(0);
+    setHasMore(false);
+    buildFetch(0, PAGE_SIZE)
+      .then((res) => {
+        if (cancelled) return;
+        setProperties(res.items);
+        setTotal(res.total);
+        setHasMore(res.total > res.items.length);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [buildFetch]);
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || !hasMore || loadingRef.current) return;
+    loadingRef.current = true;
+    const nextOffset = properties.length;
+    const count = properties.length;
+    setLoadingMore(true);
+    try {
+      const res = await buildFetch(nextOffset, PAGE_SIZE);
+      const items = res.items;
+      setProperties((prev) => {
+        const existing = new Set(prev.map((p) => p.id));
+        return [...prev, ...items.filter((p) => !existing.has(p.id))];
+      });
+      setTotal(res.total);
+      setHasMore(res.total > count + items.length);
+    } catch {
+      // ignore
+    } finally {
+      loadingRef.current = false;
+      setLoadingMore(false);
+    }
+  }, [buildFetch, loadingMore, hasMore, properties.length]);
+
+  // Load the next page as the user scrolls near the bottom, and keep filling
+  // in more homes when the page hasn't yet grown past the viewport.
+  useEffect(() => {
+    const tryLoadMore = () => {
+      if (loadingRef.current) return;
+      const nearBottom =
+        window.innerHeight + window.scrollY >= document.body.offsetHeight - 400;
+      const notEnoughContent = document.body.offsetHeight <= window.innerHeight;
+      if (nearBottom || notEnoughContent) loadMore();
+    };
+    window.addEventListener('scroll', tryLoadMore, { passive: true });
+    window.addEventListener('resize', tryLoadMore, { passive: true });
+    tryLoadMore();
+    return () => {
+      window.removeEventListener('scroll', tryLoadMore);
+      window.removeEventListener('resize', tryLoadMore);
+    };
+  }, [loadMore]);
+
+  const handleToggleFavorite = async (id: string) => {
+    const added = !isFavorited(id);
+    const result = await toggleFavorite(id);
+    if (result.success) {
+      toast(added ? 'Added to favorites' : 'Removed from favorites', added ? 'success' : 'info');
+    } else {
+      toast(result.error || (added ? 'Could not add to favorites' : 'Could not remove favorites'), 'error');
+    }
+  };
+
+  const activeFilters = [
+    city !== 'Any' ? city : null,
+    beds !== 'Any' ? beds : null,
+    maxPrice < 5000 ? `Under $${maxPrice.toLocaleString()}` : null,
+    sort !== 'newest' ? sort : null,
+  ].filter(Boolean);
+
+  const resetFilters = () => { setSearch(''); setCity('Any'); setMaxPrice(5000); setBeds('Any'); setSort('newest'); };
 
   return (
     <div className="mx-auto max-w-6xl">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800">Browse properties</h1>
-        <p className="mt-1 text-sm text-slate-500">{filtered.length} homes available across {CITIES.length} cities</p>
+      <div className="mb-10">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+          <div className="shrink-0">
+            <h1 className="text-[28px] font-bold tracking-tight text-slate-900 sm:text-[34px]">
+              Find your next home
+            </h1>
+            <p className="mt-1.5 text-sm text-slate-400">
+              {loading ? 'Loading homes…' : `${properties.length} ${properties.length === 1 ? 'home' : 'homes'} available across your cities`}
+            </p>
+          </div>
+          <div className="flex w-full items-center gap-3 lg:max-w-[560px]">
+            <div className="relative flex-1">
+              <svg className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+              </svg>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by city, neighborhood, or address…"
+                className="w-full rounded-2xl border border-slate-200 bg-white py-3.5 pl-12 pr-4 text-[15px] text-slate-800 shadow-sm outline-none transition-all placeholder:text-slate-400 focus:border-[#0F766E] focus:ring-4 focus:ring-[#0F766E]/10"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch('')}
+                  className="absolute right-3 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                </button>
+              )}
+            </div>
+            <div className="relative shrink-0">
+              <button
+                onClick={() => setFiltersOpen(!filtersOpen)}
+                className={`flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all ${
+                  filtersOpen || activeFilters.length > 0
+                    ? 'border-[#0F766E]/30 bg-[#0F766E]/[0.06] text-[#0F766E]'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
+                </svg>
+                Filters
+                {activeFilters.length > 0 && (
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#0F766E] text-[10px] font-bold text-white">
+                    {activeFilters.length}
+                  </span>
+                )}
+              </button>
+
+              {filtersOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setFiltersOpen(false)} />
+                  <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl shadow-slate-200/50">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-slate-800">Filters</h3>
+                      {activeFilters.length > 0 && (
+                        <button onClick={resetFilters} className="text-xs font-medium text-[#0F766E] hover:underline">Reset all</button>
+                      )}
+                    </div>
+
+                    <div className="mt-4 space-y-4">
+                      <div>
+                        <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-slate-400">City</label>
+                        <select value={city} onChange={(e) => setCity(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-[#0F766E]">
+                          <option>Any city</option>
+                          {(cities ?? []).map((c) => <option key={c}>{c}</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-slate-400">Bedrooms</label>
+                        <div className="flex flex-wrap gap-2">
+                          {BEDS.map((b) => (
+                            <button key={b} onClick={() => setBeds(b)} className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${beds === b ? 'bg-[#0F766E] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                              {b}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 flex items-center justify-between text-[11px] font-medium uppercase tracking-wider text-slate-400">
+                          <span>Max price</span>
+                          <span className="normal-case text-slate-700">${maxPrice.toLocaleString()}</span>
+                        </label>
+                        <input type="range" min={1500} max={5000} step={100} value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} className="w-full accent-[#0F766E]" />
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-slate-400">Sort by</label>
+                        <select value={sort} onChange={(e) => setSort(e.target.value)} className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none focus:border-[#0F766E]">
+                          <option value="newest">Newest</option>
+                          <option value="price-asc">Price: Low to High</option>
+                          <option value="price-desc">Price: High to Low</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <button onClick={() => setFiltersOpen(false)} className="mt-5 w-full rounded-xl bg-[#0F766E] py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0D9488]">
+                      Show results
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+        {activeFilters.length > 0 && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {activeFilters.map((f) => (
+              <span key={f} className="inline-flex items-center gap-1 rounded-full bg-[#0F766E]/[0.08] px-3 py-1 text-xs font-medium text-[#0F766E]">
+                {f}
+              </span>
+            ))}
+            <button onClick={resetFilters} className="text-xs font-medium text-slate-400 hover:text-slate-600">Clear</button>
+          </div>
+        )}
       </div>
 
-      {/* Filters */}
-      <div className="mb-8 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4">
-        <div className="relative flex-1 min-w-[200px]">
-          <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-          </svg>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search city, address, neighborhood…"
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-9 pr-4 text-sm text-slate-800 outline-none transition-colors focus:border-[#0F766E] focus:bg-white focus:ring-1 focus:ring-[#0F766E]/20"
-          />
+      {loading ? (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <PropertyCardSkeleton key={i} />
+          ))}
         </div>
-
-        <select value={city} onChange={(e) => setCity(e.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-[#0F766E]">
-          <option>Any city</option>
-          {CITIES.map((c) => <option key={c}>{c}</option>)}
-        </select>
-
-        <select value={beds} onChange={(e) => setBeds(e.target.value)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-[#0F766E]">
-          {BEDS.map((b) => <option key={b}>{b}</option>)}
-        </select>
-
-        <div className="flex items-center gap-2">
-          <span className="whitespace-nowrap text-xs text-slate-500">${maxPrice.toLocaleString()}</span>
-          <input type="range" min={1500} max={5000} step={100} value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} className="w-24 accent-[#0F766E]" />
-        </div>
-
-        <select value={sort} onChange={(e) => setSort(e.target.value as any)} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-700 outline-none transition-colors focus:border-[#0F766E]">
-          <option value="rating">Top rated</option>
-          <option value="price-asc">Price ↑</option>
-          <option value="price-desc">Price ↓</option>
-        </select>
-      </div>
-
-      {/* Grid */}
-      {filtered.length === 0 ? (
+      ) : properties.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-20 text-center">
           <p className="text-sm font-medium text-slate-600">No properties match your filters</p>
-          <button onClick={() => { setSearch(''); setCity('Any'); setMaxPrice(5000); setBeds('Any'); }} className="mt-3 text-sm font-semibold text-[#0F766E] hover:underline">Reset filters</button>
+          <button onClick={resetFilters} className="mt-3 text-sm font-semibold text-[#0F766E] hover:underline">Reset filters</button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((p) => (
-            <Link key={p.id} href={`/property/${p.id}`} className="group block">
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-200/80">
-                {/* Image */}
-                <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
-                  <img
-                    src={p.image}
-                    alt={p.title}
-                    loading="lazy"
-                    onLoad={() => setImgLoaded((prev) => ({ ...prev, [p.id]: true }))}
-                    className={`h-full w-full object-cover transition-all duration-500 group-hover:scale-105 ${imgLoaded[p.id] ? 'opacity-100' : 'opacity-0'}`}
-                  />
-                  {!imgLoaded[p.id] && <div className="absolute inset-0 animate-pulse bg-slate-200" />}
-                  <div className="absolute bottom-3 left-3">
-                    <span className="rounded-lg bg-white/90 px-2.5 py-1 text-sm font-bold text-slate-800 shadow-sm backdrop-blur-sm">
-                      ${p.rent.toLocaleString()}<span className="text-xs font-normal text-slate-500">/mo</span>
-                    </span>
-                  </div>
-                </div>
-
-                {/* Info */}
-                <div className="p-4">
-                  <h3 className="text-sm font-semibold text-slate-800 line-clamp-1 group-hover:text-[#0F766E]">{p.title}</h3>
-                  <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
-                    <svg className="h-3 w-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-                    </svg>
-                    {p.neighborhood}, {p.city}
-                  </p>
-                  <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-3">
-                    <div className="flex items-center gap-3 text-xs text-slate-500">
-                      <span>{p.bedrooms === 0 ? 'Studio' : `${p.bedrooms} bd`}</span>
-                      <span>{p.bathrooms} ba</span>
-                      <span>{p.sqft.toLocaleString()} ft²</span>
-                    </div>
-                    <div className="flex items-center gap-1 text-xs font-medium text-amber-500">
-                      <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
-                        <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" clipRule="evenodd" />
-                      </svg>
-                      {p.rating}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Link>
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {properties.map((p) => (
+            <PropertyCard
+              key={p.id}
+              property={toCard(p)}
+              onClick={trackClick}
+              isFavorited={isFavorited(p.id)}
+              onToggleFavorite={handleToggleFavorite}
+            />
           ))}
+        </div>
+      )}
+      {loadingMore && (
+        <div className="mt-8 flex justify-center">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-slate-200 border-t-[#0F766E]" />
+        </div>
+      )}
+      {!loading && !loadingMore && hasMore && (
+        <div className="mt-8 text-center text-xs text-slate-400">
+          Scroll for more homes…
         </div>
       )}
     </div>

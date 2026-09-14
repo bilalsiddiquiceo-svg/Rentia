@@ -1,21 +1,20 @@
 import type { Metadata } from 'next';
-import { Cinzel, Josefin_Sans } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 import { AuthProvider } from '@/context/auth-context';
 import { ToastProvider } from '@/components/Toast';
+import { RealtimeProvider } from '@/context/realtime-context';
 
-const cinzel = Cinzel({
-  subsets: ['latin'],
+const cinzel = localFont({
+  src: './fonts/cinzel-latin.woff2',
   display: 'swap',
   variable: '--font-heading',
-  weight: ['400', '500', '600', '700'],
 });
 
-const josefin = Josefin_Sans({
-  subsets: ['latin'],
+const josefin = localFont({
+  src: './fonts/josefin-sans-latin.woff2',
   display: 'swap',
   variable: '--font-sans',
-  weight: ['300', '400', '500', '600', '700'],
 });
 
 export const metadata: Metadata = {
@@ -33,7 +32,9 @@ export default function RootLayout({
       <body className="min-h-screen bg-paper text-ink flex flex-col">
         <AuthProvider>
           <ToastProvider>
-            {children}
+            <RealtimeProvider>
+              {children}
+            </RealtimeProvider>
           </ToastProvider>
         </AuthProvider>
       </body>
